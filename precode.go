@@ -13,7 +13,20 @@ import (
 // сгенерированных чисел.
 func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 	// 1. Функция Generator
-	// ...
+	var i int64
+
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("генерация окончена")
+			close(ch)
+			return
+		default:
+			i++
+			ch <- i
+			fn(i)
+		}
+	}
 }
 
 // Worker читает число из канала in и пишет его в канал out.
