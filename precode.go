@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
 // Generator генерирует последовательность чисел 1,2,3 и т.д. и
@@ -32,7 +33,16 @@ func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 // Worker читает число из канала in и пишет его в канал out.
 func Worker(in <-chan int64, out chan<- int64) {
 	// 2. Функция Worker
-	// ...
+	for {
+		v, ok := <-in
+		if !ok {
+			close(out)
+			return
+		}
+
+		out <- v
+		time.Sleep(time.Millisecond)
+	}
 }
 
 func main() {
