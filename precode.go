@@ -20,7 +20,7 @@ import (
 // Сумма чисел 15 15
 // Разбивка по каналам [1 1 1 1 1]
 
-// в case <-ctx.Done(): я походу не проваливаюсь т.к. сообщение "генерация окончена" не выводится
+// в case <-ctx.Done() я походу не проваливаюсь т.к. сообщение "генерация окончена" не выводится
 // я уже мозг сломал, где я ошибаюсь. Помошите пожалуйста
 func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 	// 1. Функция Generator
@@ -95,12 +95,10 @@ func main() {
 		wg.Add(1)
 		go func(in <-chan int64, i int64) {
 			defer wg.Done()
-			v, ok := <-in
-			if !ok {
-				return
+			for v := range in {
+				chOut <- v
+				amounts[i]++
 			}
-			chOut <- v
-			amounts[i]++
 
 		}(outs[i], i)
 	}
