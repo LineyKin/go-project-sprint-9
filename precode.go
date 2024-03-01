@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -12,9 +13,18 @@ import (
 // отправляет их в канал ch. При этом после записи в канал для каждого числа
 // вызывается функция fn. Она служит для подсчёта количества и суммы
 // сгенерированных чисел.
+
+// Вопрос-просьба о помощи
+// Код возвращает неверный ответ :
+// Количество чисел 5 5
+// Сумма чисел 15 15
+// Разбивка по каналам [1 1 1 1 1]
+
+// в case <-ctx.Done(): я походу не проваливаюсь т.к. сообщение "генерация окончена" не выводится
+// я уже мозг сломал, где я ошибаюсь. Помошите пожалуйста
 func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 	// 1. Функция Generator
-	var i int64
+	var val int64
 
 	for {
 		select {
@@ -23,11 +33,12 @@ func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 			close(ch)
 			return
 		default:
-			i++
-			ch <- i
-			fn(i)
+			val++
+			ch <- val
+			fn(val)
 		}
 	}
+
 }
 
 // Worker читает число из канала in и пишет его в канал out.
@@ -41,7 +52,7 @@ func Worker(in <-chan int64, out chan<- int64) {
 		}
 
 		out <- v
-		time.Sleep(time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 	}
 }
 
@@ -49,7 +60,7 @@ func main() {
 	chIn := make(chan int64)
 
 	// 3. Создание контекста
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	// для проверки будем считать количество и сумму отправленных чисел
@@ -58,8 +69,8 @@ func main() {
 
 	// генерируем числа, считая параллельно их количество и сумму
 	go Generator(ctx, chIn, func(i int64) {
-		inputSum += i
-		inputCount++
+		atomic.AddInt64(&inputCount, 1)
+		atomic.AddInt64(&inputSum, i)
 	})
 
 	const NumOut = 5 // количество обрабатывающих горутин и каналов
@@ -83,10 +94,14 @@ func main() {
 	for i = 0; i < NumOut; i++ {
 		wg.Add(1)
 		go func(in <-chan int64, i int64) {
-			v := <-in
+			defer wg.Done()
+			v, ok := <-in
+			if !ok {
+				return
+			}
 			chOut <- v
 			amounts[i]++
-			wg.Done()
+
 		}(outs[i], i)
 	}
 
@@ -101,7 +116,10 @@ func main() {
 	var sum int64   // сумма чисел результирующего канала
 
 	// 5. Читаем числа из результирующего канала
-	// ...
+	for v := range chOut {
+		count++
+		sum += v
+	}
 
 	fmt.Println("Количество чисел", inputCount, count)
 	fmt.Println("Сумма чисел", inputSum, sum)
